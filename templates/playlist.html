@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ playlist_name }}</title>
+</head>
+<body>
+    <h1>{{ playlist_name }}</h1>
+    <ul>
+    {% for track in tracks %}
+        <li>
+            {{ track.name }} — {{ track.artists }}
+            <a href="{{ track.discogs_url }}" target="_blank">Search Vinyl on Discogs</a>
+        </li>
+    {% endfor %}
+    </ul>
+    <p><a href="{{ url_for('spotify_playlists') }}">Back to Playlists</a></p>
+</body>
+</html>

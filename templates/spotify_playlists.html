@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Spotify Playlists</title>
+</head>
+<body>
+    <h1>Your Spotify Playlists</h1>
+    <ul>
+    {% for playlist in playlists %}
+        <li>
+            <a href="{{ url_for('spotify_playlist', playlist_id=playlist.id) }}">{{ playlist.name }}</a>
+            ({{ playlist.tracks.total }} tracks)
+        </li>
+    {% endfor %}
+    </ul>
+    <p><a href="{{ url_for('index') }}">Back to Portal</a></p>
+</body>
+</html>
