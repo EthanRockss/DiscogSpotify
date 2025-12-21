@@ -1,39 +1,40 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="utf-8" />
     <title>Music Tools Portal</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        h1 { color: #333; }
-        .login-buttons a {
-            display: inline-block;
-            margin: 10px;
-            padding: 10px 20px;
-            background-color: #1DB954;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-        }
-        .tools a { display: block; margin: 5px 0; }
-    </style>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
 </head>
 <body>
-    <h1>Music Tools Portal</h1>
-
-    <div class="login-buttons">
-
-        {% if spotify_logged_in %}
-            <p>Spotify logged in ✅</p>
-        {% else %}
-            <a href="{{ url_for('spotify_login') }}">Login with Spotify</a>
+  <div class="container">
+    <div class="page-head">
+      <div>
+        <h1>Music Tools Portal</h1>
+        <div class="sub">Tools to help you discover vinyl from your streaming playlists.</div>
+      </div>
+      <div>
+        {% if spotify_logged_in == false %}
+          <a class="btn" href="{{ url_for('spotify_login') }}">Login with Spotify</a>
         {% endif %}
+      </div>
     </div>
 
-    <hr>
-
-    <div class="tools">
-        <h2>Tools</h2>
-        <a href="{{ url_for('spotify_playlists') }}">Browse Spotify Playlists</a>
+    <div style="margin-top:18px;">
+      <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
+        {% if spotify_logged_in %}
+        <div class="card">
+          <div style="width:100%;">
+            <div class="title">Browse Playlists</div>
+            <div class="meta">View and search vinyl for tracks from your Spotify playlists.</div>
+          </div>
+          <div class="actions">
+            <a class="btn" href="{{ url_for('spotify_playlists') }}">Open</a>
+          </div>
+        </div>
+        {% endif %}
+      </div>
     </div>
+  </div>
 </body>
 </html>

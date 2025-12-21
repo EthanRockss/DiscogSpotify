@@ -1,19 +1,224 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="utf-8" />
     <title>{{ playlist_name }}</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
 </head>
 <body>
-    <h1>{{ playlist_name }}</h1>
-    <ul>
+  <div class="container">
+    <div class="page-head">
+      <div>
+        <h1>{{ playlist_name }}</h1>
+        <div class="sub">{{ total_tracks }} tracks</div>
+      </div>
+      <div>
+        <a class="btn secondary" href="{{ url_for('spotify_playlists') }}">Back to Playlists</a>
+      </div>
+    </div>
+
+    <ul id="tracks-list" class="tracks">
     {% for track in tracks %}
-        <li>
-            <img src="{{ track.album_img }}" />
-            {{ track.name }} — {{ track.artists }}
-            <a href="{{ track.discogs_url }}" target="_blank">Search Vinyl on Discogs</a>
-        </li>
+      <li class="track">
+        <div class="thumb">
+          {% if track.album_img %}
+            <!-- Use data-src for lazy-loading; also set loading attribute -->
+            <img data-src="{{ track.album_img }}" loading="lazy" alt="album art" />
+          {% else %}
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+              <rect width="24" height="24" rx="4" fill="rgba(255,255,255,0.03)"/>
+            </svg>
+          {% endif %}
+        </div>
+        <div class="info">
+          <div class="name">{{ track.name }}</div>
+          <div class="artists">{{ track.artists }}</div>
+        </div>
+        <div class="action">
+          <a class="btn" href="{{ track.discogs_url }}" target="_blank" rel="noopener noreferrer">
+            <span>🔎</span> Search Vinyl
+          </a>
+        </div>
+      </li>
     {% endfor %}
     </ul>
-    <p><a href="{{ url_for('spotify_playlists') }}">Back to Playlists</a></p>
+
+    <!-- Sentinel for infinite scroll -->
+    <div id="tracks-sentinel" style="height:1px"></div>
+
+    {% if total_tracks > page_limit %}
+      <button id="load-more-tracks" class="load-more" data-offset="{{ initial_offset + tracks|length }}" data-limit="{{ page_limit }}" data-playlist-id="{{ playlist_id }}">Load more tracks</button>
+    {% endif %}
+
+  </div>
+
+  <script>
+  (function(){
+      // IntersectionObserver instance, created once
+      const IO_ROOT_MARGIN = '800px'; // load pages before user reaches bottom
+      let imgObserver = null;
+      if ('IntersectionObserver' in window) {
+        imgObserver = new IntersectionObserver((entries, observer) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const img = entry.target;
+              const src = img.dataset && img.dataset.src;
+              if (src) {
+                img.src = src;
+                img.onload = () => img.classList.add('loaded');
+                img.removeAttribute('data-src');
+              }
+              observer.unobserve(img);
+            }
+          });
+        }, { root: null, rootMargin: '300px', threshold: 0.01 });
+      }
+
+      function observeImage(img) {
+        if (!img) return;
+        if (!img.dataset || !img.dataset.src) return;
+        if (imgObserver) imgObserver.observe(img);
+        else {
+          // Fallback: load immediately
+          const src = img.dataset.src;
+          img.src = src;
+          img.onload = () => img.classList.add('loaded');
+          img.removeAttribute('data-src');
+        }
+      }
+
+      // Observe all initially rendered track images
+      document.querySelectorAll('img[data-src]').forEach(img => observeImage(img));
+
+      const btn = document.getElementById('load-more-tracks');
+      const sentinel = document.getElementById('tracks-sentinel');
+      if (!btn && !sentinel) return;
+
+      let isLoading = false;
+      let offset = Number(btn ? btn.getAttribute('data-offset') || '0' : {{ page_limit }}) || 0;
+      const limit = Number(btn ? btn.getAttribute('data-limit') || '{{ page_limit }}' : '{{ page_limit }}') || 100;
+      const playlistId = btn ? btn.getAttribute('data-playlist-id') : '{{ playlist_id }}';
+
+      async function loadMoreTracks() {
+        if (isLoading) return;
+        isLoading = true;
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = 'Loading...';
+        }
+        try {
+          const res = await fetch(`/spotify_playlist_tracks?playlist_id=${encodeURIComponent(playlistId)}&offset=${encodeURIComponent(offset)}&limit=${encodeURIComponent(limit)}`, {
+            credentials: 'same-origin'
+          });
+          if (!res.ok) throw new Error('Network error');
+          const data = await res.json();
+          const ul = document.getElementById('tracks-list');
+
+          (data.items || []).forEach(t => {
+              const li = document.createElement('li');
+              li.className = 'track';
+
+              const thumb = document.createElement('div');
+              thumb.className = 'thumb';
+              if (t.album_img) {
+                const img = document.createElement('img');
+                img.setAttribute('data-src', t.album_img);
+                img.setAttribute('loading', 'lazy');
+                img.alt = 'album art';
+                thumb.appendChild(img);
+              } else {
+                thumb.innerHTML = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden><rect width="24" height="24" rx="4" fill="rgba(255,255,255,0.03)"/></svg>';
+              }
+
+              const info = document.createElement('div');
+              info.className = 'info';
+              const name = document.createElement('div');
+              name.className = 'name';
+              name.textContent = t.name || 'Unknown';
+              const artists = document.createElement('div');
+              artists.className = 'artists';
+              artists.textContent = t.artists || '';
+
+              info.appendChild(name);
+              info.appendChild(artists);
+
+              const action = document.createElement('div');
+              action.className = 'action';
+              const a = document.createElement('a');
+              a.className = 'btn';
+              a.href = t.discogs_url;
+              a.target = '_blank';
+              a.rel = 'noopener noreferrer';
+              a.innerHTML = '🔎 Search Vinyl';
+              action.appendChild(a);
+
+              li.appendChild(thumb);
+              li.appendChild(info);
+              li.appendChild(action);
+              ul.appendChild(li);
+
+              // observe newly appended image if present
+              const appendedImg = li.querySelector('img[data-src]');
+              if (appendedImg) observeImage(appendedImg);
+          });
+
+          const appended = (data.items || []).length;
+          offset = offset + appended;
+
+          if (!data.next_offset || (data.offset + appended) >= data.total) {
+            if (btn) btn.remove();
+            if (sentinel) observer && observer.disconnect();
+            if (sentinel && sentinel.parentNode) sentinel.parentNode.removeChild(sentinel);
+          } else {
+            if (btn) {
+              btn.setAttribute('data-offset', String(offset));
+              btn.disabled = false;
+              btn.textContent = 'Load more tracks';
+            }
+          }
+        } catch (err) {
+          console.error(err);
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Load more tracks';
+          }
+        } finally {
+          isLoading = false;
+        }
+      }
+
+      // manual button fallback
+      if (btn) btn.addEventListener('click', loadMoreTracks);
+
+      // IntersectionObserver to auto-load when sentinel visible
+      let observer = null;
+      if (sentinel && 'IntersectionObserver' in window) {
+        observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              loadMoreTracks();
+            }
+          });
+        }, { root: null, rootMargin: IO_ROOT_MARGIN, threshold: 0.01 });
+
+        observer.observe(sentinel);
+      } else {
+        // Scroll fallback
+        const scrollFallback = () => {
+          if (isLoading) return;
+          const nearBottom = (window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 800);
+          if (nearBottom) loadMoreTracks();
+        };
+        window.addEventListener('scroll', scrollFallback, { passive: true });
+      }
+  })();
+  </script>
+
+  <style>
+    /* small addition: fade-in effect for album images */
+    .thumb img { opacity: 0; transition: opacity .28s ease; display:block; width:100%; height:100%; object-fit:cover; }
+    .thumb img.loaded { opacity: 1; }
+  </style>
 </body>
 </html>
