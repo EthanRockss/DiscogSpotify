@@ -1,11 +1,15 @@
 # Spotify Vinyl Finder
 
+Uses Spotify playlists to aid in searching for vinyls on Discogs. 
+
 ## Setup
 
 I suggest creating a venv.
 ```bash
 python -m venv env
 ```
+
+**A local redis server is expected on 6379.**
 
 ### Install dependencies:
 ```bash
