@@ -8,6 +8,7 @@
     <ul>
     {% for track in tracks %}
         <li>
+            <img src="{{ track.album_img }}" />
             {{ track.name }} — {{ track.artists }}
             <a href="{{ track.discogs_url }}" target="_blank">Search Vinyl on Discogs</a>
         </li>

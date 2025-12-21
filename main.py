@@ -86,30 +86,36 @@ def spotify_playlist(playlist_id):
         return redirect(url_for("spotify_login"))
 
     sp = spotipy.Spotify(auth=session["spotify"]["token"])
-    playlist = sp.playlist(playlist_id)
-    tracks = playlist["tracks"]["items"]
+    playlist_name = sp.playlist(playlist_id, fields="name")["name"]
+    items = sp.playlist_items(playlist_id, fields="items.track(name,artists.name,album(name,images.url))")
 
     # Prepare Discogs search links
     track_links = []
-    for item in tracks:
+    for item in items["items"]:
         track = item["track"]
+        album = track["album"]
         track_name = track["name"]
-        album_name = track["album"]["name"]
+        album_name = album["name"]
+        try:
+            album_img = album["images"][-1]["url"]
+        except IndexError:
+            album_img = ""
         artists = ", ".join([a["name"] for a in track["artists"]])
-        # Use Discogs search URL
+
         query = f"{album_name} {artists}"
-        # Example: search for vinyl in the US
+
         search_url = f"https://www.discogs.com/sell/list?format=Vinyl&ships_from=United+States&q={query}"
         track_links.append({
             "name": track_name,
+            "album_img": album_img,
             "artists": artists,
             "discogs_url": search_url
         })
 
     return render_template(
         "playlist.html",
-        playlist_name=playlist["name"],
-        tracks=track_links
+        playlist_name=playlist_name,
+        tracks=track_links,
     )
 
 
