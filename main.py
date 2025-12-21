@@ -1,5 +1,4 @@
 import os
-import discogs_client
 import spotipy
 from flask import Flask, redirect, request, session, url_for, render_template
 from flask_session import Session
@@ -25,11 +24,6 @@ app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_USE_SIGNER"] = True
 Session(app)  # initialize server-side session
 
-# --- Discogs credentials ---
-DISCOGS_CONSUMER_KEY = os.getenv("DISCOGS_CONSUMER_KEY")
-DISCOGS_CONSUMER_SECRET = os.getenv("DISCOGS_CONSUMER_SECRET")
-USER_AGENT = "DiscogsSpotifyApp/0.1"
-
 # --- Spotify credentials ---
 SPOTIFY_REDIRECT_URI = "http://127.0.0.1:5000/spotify_callback"
 SCOPE = "playlist-read-private playlist-read-collaborative"
@@ -40,80 +34,15 @@ sp_oauth = SpotifyOAuth(
     scope=SCOPE
 )
 
-# --- Temporary server-side storage for Discogs request tokens ---
-# Key: request_token, Value: request_secret
-temp_tokens = {}
-
-# --- Helper function ---
-def get_discogs_client(token=None, secret=None):
-    return discogs_client.Client(
-        USER_AGENT,
-        consumer_key=DISCOGS_CONSUMER_KEY,
-        consumer_secret=DISCOGS_CONSUMER_SECRET,
-        token=token,
-        secret=secret,
-    )
-
 # --- Portal page ---
 @app.route("/")
 def index():
-    discogs_logged_in = "discogs" in session
     spotify_logged_in = "spotify" in session
 
     return render_template(
         "index.html",
-        discogs_logged_in=discogs_logged_in,
         spotify_logged_in=spotify_logged_in
     )
-
-# --- Discogs OAuth login ---
-@app.route("/login")
-def login():
-    d = discogs_client.Client(
-        USER_AGENT,
-        consumer_key=DISCOGS_CONSUMER_KEY,
-        consumer_secret=DISCOGS_CONSUMER_SECRET,
-    )
-    request_token, request_secret, auth_url = d.get_authorize_url(
-        callback_url="http://127.0.0.1:5000/callback"
-    )
-
-    # Store request secret in server-side dict
-    temp_tokens[request_token] = request_secret
-
-    return redirect(auth_url)
-
-# --- Discogs OAuth callback ---
-@app.route("/callback")
-def callback():
-    oauth_token = request.args.get("oauth_token")
-    verifier = request.args.get("oauth_verifier")
-
-    if not oauth_token or not verifier:
-        return "Missing oauth_token or oauth_verifier", 400
-
-    request_secret = temp_tokens.pop(oauth_token, None)
-    if not request_secret:
-        return "Request token not found or expired", 400
-
-    d = discogs_client.Client(
-        USER_AGENT,
-        consumer_key=DISCOGS_CONSUMER_KEY,
-        consumer_secret=DISCOGS_CONSUMER_SECRET,
-        token=oauth_token,
-        secret=request_secret
-    )
-
-    access_token, access_secret = d.get_access_token(verifier)
-
-    # Store namespaced data in server-side session
-    session["discogs"] = {
-        "token": access_token,
-        "secret": access_secret
-    }
-
-    # Redirect back to portal
-    return redirect(url_for("index"))
 
 # --- Spotify OAuth login ---
 @app.route("/spotify_login")

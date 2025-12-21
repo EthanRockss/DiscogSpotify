@@ -14,7 +14,6 @@
             text-decoration: none;
             border-radius: 5px;
         }
-        .login-buttons a.discogs { background-color: #f5f5f5; color: #000; border: 1px solid #ccc; }
         .tools a { display: block; margin: 5px 0; }
     </style>
 </head>
@@ -22,11 +21,6 @@
     <h1>Music Tools Portal</h1>
 
     <div class="login-buttons">
-        {% if discogs_logged_in %}
-            <p>Discogs logged in ✅</p>
-        {% else %}
-            <a href="{{ url_for('login') }}" class="discogs">Login with Discogs</a>
-        {% endif %}
 
         {% if spotify_logged_in %}
             <p>Spotify logged in ✅</p>
