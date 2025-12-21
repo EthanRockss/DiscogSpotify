@@ -58,7 +58,7 @@
   (function(){
       // Config
       const IO_ROOT_MARGIN = '800px'; // large margin so we fetch before user reaches bottom
-      const pageLimit = {{ page_limit | tojson }};
+      const pageLimit = '{{ page_limit }}';
       const grid = document.getElementById('playlists-grid');
       const loadMoreBtn = document.getElementById('load-more');
       const sentinel = document.getElementById('scroll-sentinel');
@@ -98,7 +98,7 @@
 
       // State
       let isLoading = false;
-      let currentOffset = Number(loadMoreBtn ? loadMoreBtn.getAttribute('data-offset') || 0 : {{ page_limit }}) || 0;
+      let currentOffset = Number(loadMoreBtn ? loadMoreBtn.getAttribute('data-offset') || 0 : '{{ page_limit }}') || 0;
       // If server provided total via template and button not present, currentOffset still tracks how many are loaded
       // loadMore will update currentOffset as it appends items.
 

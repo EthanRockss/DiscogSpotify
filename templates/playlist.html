@@ -39,6 +39,12 @@
           <a class="btn" href="{{ track.discogs_url }}" target="_blank" rel="noopener noreferrer">
             <span>🔎</span> Search Vinyl
           </a>
+          <a class="btn" href="{{ track.album_search_url }}" target="_blank" rel="noopener noreferrer">
+            <span>🎶</span> Search Album
+          </a>
+          <a class="btn" href="{{ track.artist_search_url }}" target="_blank" rel="noopener noreferrer">
+            <span>🎭</span> Search Artist
+          </a>
         </div>
       </li>
     {% endfor %}
@@ -96,7 +102,7 @@
       if (!btn && !sentinel) return;
 
       let isLoading = false;
-      let offset = Number(btn ? btn.getAttribute('data-offset') || '0' : {{ page_limit }}) || 0;
+      let offset = Number(btn ? btn.getAttribute('data-offset') || '0' : '{{ page_limit }}') || 0;
       const limit = Number(btn ? btn.getAttribute('data-limit') || '{{ page_limit }}' : '{{ page_limit }}') || 100;
       const playlistId = btn ? btn.getAttribute('data-playlist-id') : '{{ playlist_id }}';
 
@@ -145,13 +151,37 @@
 
               const action = document.createElement('div');
               action.className = 'action';
-              const a = document.createElement('a');
-              a.className = 'btn';
-              a.href = t.discogs_url;
-              a.target = '_blank';
-              a.rel = 'noopener noreferrer';
-              a.innerHTML = '🔎 Search Vinyl';
-              action.appendChild(a);
+
+              // Search Vinyl button (always present)
+              const vinylBtn = document.createElement('a');
+              vinylBtn.className = 'btn';
+              vinylBtn.href = t.discogs_url || '#';
+              vinylBtn.target = '_blank';
+              vinylBtn.rel = 'noopener noreferrer';
+              vinylBtn.innerHTML = '🔎 Search Vinyl';
+              action.appendChild(vinylBtn);
+
+              // Album search button (may be present)
+              if (t.album_search_url) {
+                const albumBtn = document.createElement('a');
+                albumBtn.className = 'btn';
+                albumBtn.href = t.album_search_url;
+                albumBtn.target = '_blank';
+                albumBtn.rel = 'noopener noreferrer';
+                albumBtn.innerHTML = '🎶 Search Album';
+                action.appendChild(albumBtn);
+              }
+
+              // Artist search button (may be present)
+              if (t.artist_search_url) {
+                const artistBtn = document.createElement('a');
+                artistBtn.className = 'btn';
+                artistBtn.href = t.artist_search_url;
+                artistBtn.target = '_blank';
+                artistBtn.rel = 'noopener noreferrer';
+                artistBtn.innerHTML = '🎭 Search Artist';
+                action.appendChild(artistBtn);
+              }
 
               li.appendChild(thumb);
               li.appendChild(info);

@@ -5,6 +5,7 @@ from flask import Flask, redirect, request, session, url_for, render_template, j
 from flask_session import Session
 from dotenv import load_dotenv
 from spotipy.oauth2 import SpotifyOAuth
+from urllib.parse import quote_plus
 import redis
 
 # Load environment variables
@@ -108,6 +109,54 @@ def get_spotify_client():
 
     # Build spotipy client with the valid token
     return spotipy.Spotify(auth=access_token)
+
+
+# New helper: turn Spotify playlist item objects into simplified track dicts
+def simplify_playlist_items(items):
+    """
+    Given a list of playlist item objects (as returned by Spotify API),
+    return a list of simplified dicts with fields:
+      - name
+      - album_img
+      - artists
+      - discogs_url
+    If include_album_and_artist_search is True, also add:
+      - album_search_url
+      - artist_search_url
+    """
+    result = []
+    for item in items:
+        track = item.get("track")
+        if not track:
+            continue
+        album = track.get("album", {})
+        track_name = track.get("name", "")
+        album_name = album.get("name", "")
+        images = album.get("images") or []
+        album_img = ""
+        if images:
+            # prefer the last image (usually smallest) to match previous behavior
+            try:
+                album_img = images[-1].get("url", "") or ""
+            except Exception:
+                album_img = ""
+        artists = ", ".join([a.get("name", "") for a in track.get("artists", [])])
+
+        query = quote_plus(f"{album_name} {artists}")
+        discogs_url = f"https://www.discogs.com/sell/list?format=Vinyl&ships_from=United+States&q={query}"
+
+        item_dict = {
+            "name": track_name,
+            "album_img": album_img,
+            "artists": artists,
+            "discogs_url": discogs_url
+        }
+
+        item_dict["album_search_url"] = f"https://www.discogs.com/search?q={query}&type=release&format_exact=Vinyl&layout=med"
+        item_dict["artist_search_url"] = f"https://www.discogs.com/search?q={quote_plus(artists)}&type=artist"
+
+        result.append(item_dict)
+    return result
 
 
 # --- Portal page ---
@@ -232,28 +281,8 @@ def spotify_playlist(playlist_id):
     items_obj = sp.playlist_items(playlist_id, fields="items.track(name,artists.name,album(name,images.url)),total", limit=limit, offset=offset)
     items = items_obj.get("items", [])
 
-    track_links = []
-    for item in items:
-        track = item.get("track")
-        if not track:
-            continue
-        album = track.get("album", {})
-        track_name = track.get("name", "")
-        album_name = album.get("name", "")
-        try:
-            album_img = album.get("images", [])[-1]["url"]
-        except Exception:
-            album_img = ""
-        artists = ", ".join([a.get("name", "") for a in track.get("artists", [])])
-
-        query = f"{album_name} {artists}"
-        search_url = f"https://www.discogs.com/sell/list?format=Vinyl&ships_from=United+States&q={query}"
-        track_links.append({
-            "name": track_name,
-            "album_img": album_img,
-            "artists": artists,
-            "discogs_url": search_url
-        })
+    # Use helper to build track links (include album & artist search URLs for the page)
+    track_links = simplify_playlist_items(items)
 
     return render_template(
         "playlist.html",
@@ -286,28 +315,8 @@ def spotify_playlist_tracks():
     items = items_obj.get("items", [])
     total = items_obj.get("total", 0)
 
-    result = []
-    for item in items:
-        track = item.get("track")
-        if not track:
-            continue
-        album = track.get("album", {})
-        track_name = track.get("name", "")
-        album_name = album.get("name", "")
-        try:
-            album_img = album.get("images", [])[-1]["url"]
-        except Exception:
-            album_img = ""
-        artists = ", ".join([a.get("name", "") for a in track.get("artists", [])])
-
-        query = f"{album_name} {artists}"
-        search_url = f"https://www.discogs.com/sell/list?format=Vinyl&ships_from=United+States&q={query}"
-        result.append({
-            "name": track_name,
-            "album_img": album_img,
-            "artists": artists,
-            "discogs_url": search_url
-        })
+    # Use helper to build simplified track items (no extra album/artist search URLs needed for the API)
+    result = simplify_playlist_items(items)
 
     return jsonify({
         "items": result,
