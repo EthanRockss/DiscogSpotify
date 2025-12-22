@@ -14,6 +14,8 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY")
+if not os.getenv("FLASK_SECRET_KEY"):
+    raise RuntimeError("FLASK_SECRET_KEY is not set")
 
 # --- Redis session configuration ---
 # Make sure Redis server is running locally or remotely
