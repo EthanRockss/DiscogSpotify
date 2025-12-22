@@ -1,12 +1,13 @@
 import os
 import time
 import spotipy
+import redis
+import secrets
 from flask import Flask, redirect, request, session, url_for, render_template, jsonify
 from flask_session import Session
 from dotenv import load_dotenv
 from spotipy.oauth2 import SpotifyOAuth
 from urllib.parse import quote_plus
-import redis
 
 # Load environment variables
 load_dotenv()
@@ -171,12 +172,18 @@ def index():
 # --- Spotify OAuth login ---
 @app.route("/spotify_login")
 def spotify_login():
-    auth_url = sp_oauth.get_authorize_url()
+    state = secrets.token_urlsafe(16)
+    session["spotify_auth_state"] = state
+    auth_url = sp_oauth.get_authorize_url(state=state)
     return redirect(auth_url)
 
 # --- Spotify OAuth callback ---
 @app.route("/spotify_callback")
 def spotify_callback():
+    state = request.args.get("state")
+    saved = session.pop("spotify_auth_state", None)
+    if not saved or state != saved:
+        return "Invalid state", 400
     code = request.args.get("code")
     if not code:
         return "Authorization failed", 400
