@@ -14,8 +14,15 @@
         <div class="sub">Tools to help you discover vinyl from your streaming playlists.</div>
       </div>
       <div>
+        {% if spotify_logged_in %}
+          <h1>Hello {{ spotify_username }}!</h1>
+        {% endif %}
+      </div>
+      <div>
         {% if spotify_logged_in == false %}
           <a class="btn" href="{{ url_for('spotify_login') }}">Login with Spotify</a>
+        {% else %}
+          <a class="btn" href="{{ url_for('logout') }}">Logout</a>
         {% endif %}
       </div>
     </div>

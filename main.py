@@ -5,10 +5,10 @@ import redis
 import secrets
 from flask import Flask, redirect, request, session, url_for, render_template, jsonify
 from flask_session import Session
+from flask_talisman import Talisman
 from dotenv import load_dotenv
 from spotipy.oauth2 import SpotifyOAuth
 from urllib.parse import quote_plus
-
 # Load environment variables
 load_dotenv()
 
@@ -27,7 +27,11 @@ app.config["SESSION_REDIS"] = redis.Redis(
 )
 app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_USE_SIGNER"] = True
+app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = 'Lax'
 Session(app)  # initialize server-side session
+Talisman(app, content_security_policy="default-src 'self'; img-src 'self' https: data:;")
 
 # --- Spotify credentials ---
 SPOTIFY_REDIRECT_URI = "http://127.0.0.1:5000/spotify_callback"
@@ -165,10 +169,15 @@ def simplify_playlist_items(items):
 # --- Portal page ---
 @app.route("/")
 def index():
+    spotify_username = ""
     spotify_logged_in = "spotify" in session
+    if spotify_logged_in:
+        sp = get_spotify_client()
+        spotify_username = sp.me()["display_name"]
     return render_template(
         "index.html",
-        spotify_logged_in=spotify_logged_in
+        spotify_logged_in=spotify_logged_in,
+        spotify_username=spotify_username
     )
 
 # --- Spotify OAuth login ---
@@ -335,6 +344,11 @@ def spotify_playlist_tracks():
         "next_offset": offset + len(result) if len(result) else None
     })
 
+@app.route("/logout")
+def logout():
+    session.pop("spotify", None)
+    session.clear()
+    return redirect(url_for('index'))
 
 # --- Run app ---
 if __name__ == "__main__":
