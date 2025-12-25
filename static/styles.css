@@ -212,6 +212,22 @@ html,body{
   box-shadow: 0 10px 26px rgba(13,110,84,0.18);
 }
 
+/* Image stuff */
+.cover img { width:72px; height:72px; object-fit:cover; border-radius:8px; opacity:0; transition:opacity .28s ease; display:block; }
+.cover img.loaded { opacity:1; }
+.cover svg { width:72px; height:72px; display:block; }
+.card-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.card-content .title {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+
 /* Small screens */
 @media (max-width:640px){
   .container { margin: 20px; padding: 16px; }

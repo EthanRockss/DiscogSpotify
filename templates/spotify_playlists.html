@@ -6,7 +6,9 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
 </head>
-<body>
+<body
+  data-page-limit="{{ page_limit }}"
+>
   <div class="container">
     <div class="page-head">
       <div>
@@ -46,7 +48,7 @@
     </div>
 
     <!-- Sentinel for infinite scroll -->
-    <div id="scroll-sentinel" style="height:1px"></div>
+    <div id="scroll-sentinel" class="sentinel"></div>
 
     {% if total_playlists > page_limit %}
       <button id="load-more" class="load-more" data-offset="{{ page_limit }}">Load more playlists</button>
@@ -54,189 +56,9 @@
 
   </div>
 
-  <script>
-  (function(){
-      // Config
-      const IO_ROOT_MARGIN = '800px'; // large margin so we fetch before user reaches bottom
-      const pageLimit = '{{ page_limit }}';
-      const grid = document.getElementById('playlists-grid');
-      const loadMoreBtn = document.getElementById('load-more');
-      const sentinel = document.getElementById('scroll-sentinel');
+  <script src="{{ url_for('static', filename='js/lazy-images.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/infinite-scroll.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/playlists.js') }}" defer></script>
 
-      // IntersectionObserver for lazy-loading images
-      let imgObserver = null;
-      if ('IntersectionObserver' in window) {
-        imgObserver = new IntersectionObserver((entries, observer) => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              const img = entry.target;
-              const src = img.dataset && img.dataset.src;
-              if (src) {
-                img.src = src;
-                img.onload = () => img.classList && img.classList.add('loaded');
-                img.removeAttribute('data-src');
-              }
-              observer.unobserve(img);
-            }
-          });
-        }, { root: null, rootMargin: '300px', threshold: 0.01 });
-      }
-
-      function observeImage(img) {
-        if (!img) return;
-        if (!img.dataset || !img.dataset.src) return;
-        if (imgObserver) imgObserver.observe(img);
-        else {
-          img.src = img.dataset.src;
-          img.onload = () => img.classList && img.classList.add('loaded');
-          img.removeAttribute('data-src');
-        }
-      }
-
-      // Observe initial images
-      document.querySelectorAll('#playlists-grid img[data-src]').forEach(img => observeImage(img));
-
-      // State
-      let isLoading = false;
-      let currentOffset = Number(loadMoreBtn ? loadMoreBtn.getAttribute('data-offset') || 0 : '{{ page_limit }}') || 0;
-      // If server provided total via template and button not present, currentOffset still tracks how many are loaded
-      // loadMore will update currentOffset as it appends items.
-
-      async function loadMore() {
-        if (isLoading) return;
-        isLoading = true;
-        if (loadMoreBtn) {
-          loadMoreBtn.disabled = true;
-          loadMoreBtn.textContent = 'Loading...';
-        }
-        const limit = pageLimit || 50;
-        try {
-          const res = await fetch(`/spotify_playlists_data?offset=${encodeURIComponent(currentOffset)}&limit=${encodeURIComponent(limit)}`, { credentials: 'same-origin' });
-          if (!res.ok) throw new Error('Network error');
-          const data = await res.json();
-          (data.items || []).forEach(p => {
-            const card = document.createElement('div');
-            card.className = 'card';
-            card.setAttribute('data-id', p.id);
-
-            const cardTop = document.createElement('div');
-            cardTop.className = 'card-top';
-            cardTop.style.display = 'flex';
-            cardTop.style.gap = '12px';
-            cardTop.style.alignItems = 'flex-start';
-            cardTop.style.width = '100%';
-
-            const cover = document.createElement('div');
-            cover.className = 'cover';
-
-            if (p.image) {
-              const img = document.createElement('img');
-              img.setAttribute('data-src', p.image);
-              img.setAttribute('loading', 'lazy');
-              img.alt = 'playlist cover';
-              cover.appendChild(img);
-            } else {
-              cover.innerHTML = '<svg width="72" height="72" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden><rect width="24" height="24" rx="4" fill="rgba(255,255,255,0.03)"/></svg>';
-            }
-
-            const content = document.createElement('div');
-            content.className = 'card-content';
-            content.style.flex = '1 1 auto';
-            content.style.minWidth = '0';
-
-            const a = document.createElement('a');
-            a.className = 'title view-link';
-            a.href = `/spotify_playlist/${encodeURIComponent(p.id)}`;
-            a.textContent = p.name || 'Untitled';
-
-            const meta = document.createElement('div');
-            meta.className = 'meta';
-            meta.textContent = `${p.tracks_total || 0} tracks`;
-
-            content.appendChild(a);
-            content.appendChild(meta);
-
-            cardTop.appendChild(cover);
-            cardTop.appendChild(content);
-
-            const actions = document.createElement('div');
-            actions.className = 'actions';
-            const openBtn = document.createElement('a');
-            openBtn.className = 'btn';
-            openBtn.href = `/spotify_playlist/${encodeURIComponent(p.id)}`;
-            openBtn.textContent = 'Open';
-            actions.appendChild(openBtn);
-
-            card.appendChild(cardTop);
-            card.appendChild(actions);
-            grid.appendChild(card);
-
-            // Observe playlist cover image if present
-            const appendedImg = card.querySelector('img[data-src]');
-            if (appendedImg) observeImage(appendedImg);
-          });
-
-          const appendedCount = (data.items || []).length;
-          currentOffset = currentOffset + appendedCount;
-
-          // Remove button/sentinel if no more items
-          if (!data.next || currentOffset >= (data.total || 0)) {
-            if (loadMoreBtn) loadMoreBtn.remove();
-            if (sentinel) observer && observer.disconnect();
-            // hide sentinel
-            if (sentinel && sentinel.parentNode) sentinel.parentNode.removeChild(sentinel);
-          } else {
-            if (loadMoreBtn) {
-              loadMoreBtn.disabled = false;
-              loadMoreBtn.textContent = 'Load more playlists';
-              loadMoreBtn.setAttribute('data-offset', String(currentOffset));
-            }
-          }
-        } catch (err) {
-          console.error(err);
-          if (loadMoreBtn) {
-            loadMoreBtn.disabled = false;
-            loadMoreBtn.textContent = 'Load more playlists';
-          }
-        } finally {
-          isLoading = false;
-        }
-      }
-
-      // Manual button hook (fallback)
-      if (loadMoreBtn) {
-        loadMoreBtn.addEventListener('click', loadMore);
-      }
-
-      // IntersectionObserver to auto-load when sentinel visible
-      let observer = null;
-      if (sentinel && 'IntersectionObserver' in window) {
-        observer = new IntersectionObserver((entries) => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              loadMore();
-            }
-          });
-        }, { root: null, rootMargin: IO_ROOT_MARGIN, threshold: 0.01 });
-
-        observer.observe(sentinel);
-      } else {
-        // Fallback: attach a scroll listener that triggers when near bottom
-        const scrollFallback = () => {
-          if (isLoading) return;
-          const nearBottom = (window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 800);
-          if (nearBottom) loadMore();
-        };
-        window.addEventListener('scroll', scrollFallback, { passive: true });
-      }
-  })();
-  </script>
-
-  <style>
-    /* Small fade-in for playlist images */
-    .cover img { width:72px; height:72px; object-fit:cover; border-radius:8px; opacity:0; transition:opacity .28s ease; display:block; }
-    .cover img.loaded { opacity:1; }
-    .cover svg { width:72px; height:72px; display:block; }
-  </style>
 </body>
 </html>
