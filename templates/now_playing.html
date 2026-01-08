@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Now Playing</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+  <div class="container">
+    <div class="page-head">
+      <div>
+        <h1>Now Playing</h1>
+        <div class="sub" id="status-text">Loading...</div>
+      </div>
+      <div>
+        <a class="btn secondary" href="{{ url_for('index') }}">Back to Portal</a>
+      </div>
+    </div>
+
+    <div id="now-playing" class="now-playing">
+      <div class="now-playing-empty">
+        <p>Loading current track...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    const POLL_INTERVAL = 5000; // 5 seconds
+    const container = document.getElementById('now-playing');
+    const statusText = document.getElementById('status-text');
+    let lastTrackName = null;
+    let progressInterval = null;
+    let currentProgress = 0;
+    let currentDuration = 0;
+    let isCurrentlyPlaying = false;
+
+    function formatTime(ms) {
+      const totalSeconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+    }
+
+    function updateProgressBar() {
+      if (!isCurrentlyPlaying || currentDuration === 0) return;
+      currentProgress += 1000; // Add 1 second
+      if (currentProgress > currentDuration) currentProgress = currentDuration;
+
+      const progressPercent = (currentProgress / currentDuration) * 100;
+      const progressBar = document.getElementById('progress-fill');
+      const progressTime = document.getElementById('progress-time');
+      if (progressBar) progressBar.style.width = progressPercent + '%';
+      if (progressTime) progressTime.textContent = formatTime(currentProgress) + ' / ' + formatTime(currentDuration);
+    }
+
+    function renderTrack(data) {
+      const track = data.track;
+      if (!track) {
+        container.innerHTML = '<div class="now-playing-empty"><p>Nothing playing right now</p></div>';
+        statusText.textContent = 'No active playback';
+        return;
+      }
+
+      isCurrentlyPlaying = data.is_playing;
+      currentProgress = track.progress_ms || 0;
+      currentDuration = track.duration_ms || 0;
+
+      statusText.textContent = data.is_playing ? 'Currently playing' : 'Last played';
+
+      container.innerHTML = `
+        <div class="now-playing-card">
+          <div class="album-art">
+            ${track.album_img ? `<img src="${track.album_img}" alt="Album art" />` : '<div class="album-placeholder"></div>'}
+          </div>
+          <div class="track-info">
+            <div class="track-name">${escapeHtml(track.name)}</div>
+            <div class="track-artists">${escapeHtml(track.artists)}</div>
+            <div class="track-album">${escapeHtml(track.album_name)}</div>
+          </div>
+          <div class="progress-container">
+            <div class="progress-bar">
+              <div class="progress-fill" id="progress-fill" style="width: ${currentDuration ? (currentProgress / currentDuration * 100) : 0}%"></div>
+            </div>
+            <div class="progress-time" id="progress-time">${formatTime(currentProgress)} / ${formatTime(currentDuration)}</div>
+          </div>
+          <div class="discogs-actions">
+            <a class="btn" href="${track.discogs_url}" target="_blank" rel="noopener noreferrer">
+              <span>🔎</span> Search Vinyl
+            </a>
+            <a class="btn" href="${track.album_search_url}" target="_blank" rel="noopener noreferrer">
+              <span>🎶</span> Search Album
+            </a>
+            <a class="btn" href="${track.artist_search_url}" target="_blank" rel="noopener noreferrer">
+              <span>🎭</span> Search Artist
+            </a>
+          </div>
+        </div>
+      `;
+
+      // Start progress animation if playing
+      if (progressInterval) clearInterval(progressInterval);
+      if (data.is_playing) {
+        progressInterval = setInterval(updateProgressBar, 1000);
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text || '';
+      return div.innerHTML;
+    }
+
+    async function fetchNowPlaying() {
+      try {
+        const res = await fetch('/now_playing_data', { credentials: 'same-origin' });
+        if (res.status === 401) {
+          window.location.href = '/spotify_login';
+          return;
+        }
+        if (!res.ok) throw new Error('Network error');
+        const data = await res.json();
+        if (data.error) {
+          console.error('API error:', data.error);
+          return;
+        }
+        renderTrack(data);
+      } catch (err) {
+        console.error('Failed to fetch now playing:', err);
+      }
+    }
+
+    // Initial fetch
+    fetchNowPlaying();
+
+    // Poll every 5 seconds
+    setInterval(fetchNowPlaying, POLL_INTERVAL);
+  })();
+  </script>
+
+  <style>
+    .now-playing {
+      margin-top: 24px;
+    }
+
+    .now-playing-empty {
+      text-align: center;
+      padding: 48px;
+      color: rgba(255,255,255,0.5);
+    }
+
+    .now-playing-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      max-width: 400px;
+      margin: 0 auto;
+      padding: 32px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 16px;
+    }
+
+    .album-art {
+      width: 280px;
+      height: 280px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.05);
+    }
+
+    .album-art img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .album-placeholder {
+      width: 100%;
+      height: 100%;
+      background: rgba(255,255,255,0.03);
+    }
+
+    .track-info {
+      text-align: center;
+      width: 100%;
+    }
+
+    .track-name {
+      font-size: 1.4em;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .track-artists {
+      font-size: 1.1em;
+      color: rgba(255,255,255,0.8);
+      margin-bottom: 4px;
+    }
+
+    .track-album {
+      font-size: 0.95em;
+      color: rgba(255,255,255,0.5);
+    }
+
+    .progress-container {
+      width: 100%;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: #1db954;
+      transition: width 0.3s linear;
+    }
+
+    .progress-time {
+      text-align: center;
+      font-size: 0.85em;
+      color: rgba(255,255,255,0.5);
+      margin-top: 8px;
+    }
+
+    .discogs-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .discogs-actions .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+  </style>
+</body>
+</html>

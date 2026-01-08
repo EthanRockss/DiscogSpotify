@@ -25,6 +25,15 @@
         {% if spotify_logged_in %}
         <div class="card">
           <div style="width:100%;">
+            <div class="title">Now Playing</div>
+            <div class="meta">See what's currently playing and search for it on vinyl.</div>
+          </div>
+          <div class="actions">
+            <a class="btn" href="{{ url_for('now_playing') }}">Open</a>
+          </div>
+        </div>
+        <div class="card">
+          <div style="width:100%;">
             <div class="title">Browse Playlists</div>
             <div class="meta">View and search vinyl for tracks from your Spotify playlists.</div>
           </div>
