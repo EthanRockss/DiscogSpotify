@@ -79,6 +79,17 @@
             <div class="track-artists">${escapeHtml(track.artists)}</div>
             <div class="track-album">${escapeHtml(track.album_name)}</div>
           </div>
+          ${track.vinyl_prices ? `
+          <div class="vinyl-prices">
+            <span class="price-label">Vinyl from</span>
+            <span class="price-range">$${track.vinyl_prices.lowest.toFixed(2)} ${track.vinyl_prices.currency}</span>
+            <span class="for-sale">(${track.vinyl_prices.num_for_sale} for sale)</span>
+          </div>
+          ` : `
+          <div class="vinyl-prices">
+            <span class="price-unavailable">Vinyl price info unavailable</span>
+          </div>
+          `}
           <div class="progress-container">
             <div class="progress-bar">
               <div class="progress-fill" id="progress-fill" style="width: ${currentDuration ? (currentProgress / currentDuration * 100) : 0}%"></div>
@@ -132,10 +143,12 @@
     }
 
     // Initial fetch
+    console.log('Now Playing: Starting initial fetch...');
     fetchNowPlaying();
 
     // Poll every 5 seconds
     setInterval(fetchNowPlaying, POLL_INTERVAL);
+    console.log('Now Playing: Script loaded successfully');
   })();
   </script>
 
@@ -203,6 +216,36 @@
     .track-album {
       font-size: 0.95em;
       color: rgba(255,255,255,0.5);
+    }
+
+    .vinyl-prices {
+      text-align: center;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      width: 100%;
+    }
+
+    .vinyl-prices .price-label {
+      color: rgba(255,255,255,0.6);
+      margin-right: 8px;
+    }
+
+    .vinyl-prices .price-range {
+      color: #1db954;
+      font-weight: 600;
+      font-size: 1.1em;
+    }
+
+    .vinyl-prices .for-sale {
+      color: rgba(255,255,255,0.5);
+      font-size: 0.9em;
+      margin-left: 8px;
+    }
+
+    .vinyl-prices .price-unavailable {
+      color: rgba(255,255,255,0.4);
+      font-style: italic;
     }
 
     .progress-container {
