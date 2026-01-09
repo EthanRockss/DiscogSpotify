@@ -28,7 +28,7 @@ Session(app)  # initialize server-side session
 
 # --- Spotify credentials ---
 SPOTIFY_REDIRECT_URI = "http://127.0.0.1:5000/spotify_callback"
-SCOPE = "playlist-read-private playlist-read-collaborative"
+SCOPE = "playlist-read-private playlist-read-collaborative user-read-currently-playing user-read-recently-played"
 sp_oauth = SpotifyOAuth(
     client_id=os.getenv("SPOTIFY_CLIENT_ID"),
     client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
@@ -173,6 +173,11 @@ def index():
 def spotify_login():
     auth_url = sp_oauth.get_authorize_url()
     return redirect(auth_url)
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("index"))
 
 # --- Spotify OAuth callback ---
 @app.route("/spotify_callback")
@@ -325,6 +330,74 @@ def spotify_playlist_tracks():
         "total": total,
         "next_offset": offset + len(result) if len(result) else None
     })
+
+
+# --- Now Playing ---
+@app.route("/now_playing")
+def now_playing():
+    try:
+        sp = get_spotify_client()
+    except AuthError:
+        return redirect(url_for("spotify_login"))
+    return render_template("now_playing.html")
+
+
+@app.route("/now_playing_data")
+def now_playing_data():
+    try:
+        sp = get_spotify_client()
+    except AuthError:
+        return jsonify({"error": "not_authenticated"}), 401
+
+    try:
+        current = sp.current_user_playing_track()
+
+        # If nothing currently playing, get recently played
+        if not current or not current.get("item"):
+            recent = sp.current_user_recently_played(limit=1)
+            items = recent.get("items", [])
+            if not items:
+                return jsonify({"is_playing": False, "track": None})
+
+            track = items[0].get("track", {})
+            is_playing = False
+            progress_ms = 0
+        else:
+            track = current.get("item", {})
+            is_playing = current.get("is_playing", False)
+            progress_ms = current.get("progress_ms", 0)
+
+        if not track:
+            return jsonify({"is_playing": False, "track": None})
+
+        album = track.get("album", {})
+        album_name = album.get("name", "")
+        artists = ", ".join([a.get("name", "") for a in track.get("artists", [])])
+        images = album.get("images") or []
+        album_img = images[0].get("url", "") if images else ""
+
+        query = quote_plus(f"{album_name} {artists}")
+        discogs_url = f"https://www.discogs.com/sell/list?format=Vinyl&ships_from=United+States&q={query}"
+        album_search_url = f"https://www.discogs.com/search?q={query}&type=release&format_exact=Vinyl&layout=med"
+        artist_search_url = f"https://www.discogs.com/search?q={quote_plus(artists)}&type=artist"
+
+        return jsonify({
+            "is_playing": is_playing,
+            "track": {
+                "name": track.get("name", ""),
+                "artists": artists,
+                "album_name": album_name,
+                "album_img": album_img,
+                "duration_ms": track.get("duration_ms", 0),
+                "progress_ms": progress_ms,
+                "discogs_url": discogs_url,
+                "album_search_url": album_search_url,
+                "artist_search_url": artist_search_url
+            }
+        })
+    except Exception as e:
+        app.logger.exception("Failed to get now playing")
+        return jsonify({"error": "spotify_error"}), 500
 
 
 # --- Run app ---
