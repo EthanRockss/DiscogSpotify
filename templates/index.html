@@ -16,6 +16,8 @@
       <div>
         {% if spotify_logged_in == false %}
           <a class="btn" href="{{ url_for('spotify_login') }}">Login with Spotify</a>
+        {% else %}
+          <a class="btn" href="{{ url_for('logout') }}">Logout</a>
         {% endif %}
       </div>
     </div>

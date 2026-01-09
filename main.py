@@ -1,6 +1,7 @@
 import os
 import time
 import spotipy
+import discogs_client
 from flask import Flask, redirect, request, session, url_for, render_template, jsonify
 from flask_session import Session
 from dotenv import load_dotenv
@@ -35,6 +36,60 @@ sp_oauth = SpotifyOAuth(
     redirect_uri=SPOTIFY_REDIRECT_URI,
     scope=SCOPE
 )
+
+# --- Discogs client ---
+discogs = discogs_client.Client(
+    'DiscogSpotify/1.0',
+    user_token=os.getenv("DISCOGS_USER_TOKEN")
+)
+
+# Price cache: { "album_name|artists": {"prices": {...}, "timestamp": ...} }
+discogs_price_cache = {}
+DISCOGS_CACHE_TTL = 3600  # 1 hour
+
+
+def get_vinyl_price_range(album_name, artists):
+    """
+    Search Discogs for vinyl releases and return price info.
+    Returns dict with lowest price or None if not found.
+    """
+    cache_key = f"{album_name}|{artists}"
+
+    # Check cache
+    if cache_key in discogs_price_cache:
+        cached = discogs_price_cache[cache_key]
+        if time.time() - cached["timestamp"] < DISCOGS_CACHE_TTL:
+            return cached["prices"]
+
+    try:
+        results = discogs.search(f"{album_name} {artists}", type='release', format='Vinyl')
+
+        # Get first vinyl result with price info
+        for result in results:
+            try:
+                stats = result.marketplace_stats
+                if stats and stats.lowest_price:
+                    price_data = {
+                        "lowest": stats.lowest_price.value,
+                        "currency": stats.lowest_price.currency,
+                        "num_for_sale": stats.num_for_sale
+                    }
+                    discogs_price_cache[cache_key] = {
+                        "prices": price_data,
+                        "timestamp": time.time()
+                    }
+                    return price_data
+            except Exception:
+                continue
+
+        # Cache "not found" to avoid repeated lookups
+        discogs_price_cache[cache_key] = {"prices": None, "timestamp": time.time()}
+        return None
+
+    except Exception as e:
+        app.logger.warning(f"Discogs API error: {e}")
+        return None
+
 
 # Helper: ensure we have a valid Spotify client (refresh token if needed)
 class AuthError(Exception):
@@ -381,6 +436,9 @@ def now_playing_data():
         album_search_url = f"https://www.discogs.com/search?q={query}&type=release&format_exact=Vinyl&layout=med"
         artist_search_url = f"https://www.discogs.com/search?q={quote_plus(artists)}&type=artist"
 
+        # Fetch vinyl prices from Discogs
+        vinyl_prices = get_vinyl_price_range(album_name, artists)
+
         return jsonify({
             "is_playing": is_playing,
             "track": {
@@ -392,7 +450,8 @@ def now_playing_data():
                 "progress_ms": progress_ms,
                 "discogs_url": discogs_url,
                 "album_search_url": album_search_url,
-                "artist_search_url": artist_search_url
+                "artist_search_url": artist_search_url,
+                "vinyl_prices": vinyl_prices
             }
         })
     except Exception as e:
